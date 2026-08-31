@@ -578,9 +578,10 @@ def analyze(
         "generated_at": utc_now(),
         "time_zone": time_zone,
         "claim_boundary": (
-            "This is an unlabelled natural-operation RF/CSI dataset. It supports stability, continuity, "
-            "timing-wrap, signal-variation, and data-quality claims; it does not establish human occupancy "
-            "or activity-classification accuracy."
+            "This is an unlabelled natural-operation RF/CSI dataset. The analysis reports diagnostic "
+            "observations about stability, continuity, timestamp behaviour, signal variation, and data "
+            "quality. These observations do not by themselves validate a scientific or method-level claim, "
+            "and they do not establish human occupancy or activity-classification accuracy."
         ),
         "run": {
             "run_id": manifest["run_id"],
@@ -663,6 +664,19 @@ def analyze(
     }
 
 
+def rollover_interpretation(timestamp_wraps: int, nonwrap_regressions: int) -> str:
+    if timestamp_wraps == 0:
+        return (
+            "- No ESP 32-bit microsecond-clock rollover was observed; therefore this run did not exercise "
+            f"or validate rollover handling. Non-wrap regressions: {nonwrap_regressions}."
+        )
+    return (
+        f"- The run contains {timestamp_wraps} observed ESP 32-bit microsecond-clock rollover(s) and "
+        f"{nonwrap_regressions} non-wrap regression(s). The observed rollover transitions exercised the "
+        "rollover-detection path and were not treated as reboot events."
+    )
+
+
 def markdown(report: dict[str, Any]) -> str:
     def decimal(value: Any, digits: int = 3) -> str:
         return f"{float(value):.{digits}f}" if value is not None else "n/a"
@@ -726,8 +740,9 @@ def markdown(report: dict[str, Any]) -> str:
         "",
         "## Failure-aware interpretation",
         "",
-        f"- The {timing['timestamp_wraps']} ESP 32-bit microsecond-clock wraps with zero non-wrap "
-        "regressions are a natural-run validation of rollover handling, not reboot events.",
+        rollover_interpretation(
+            timing["timestamp_wraps"], timing["nonwrap_timestamp_regressions"]
+        ),
         f"- The sole {disconnects[0]['duration_seconds']:.3f}-second transport interruption "
         "reconnected without changing the firmware boot epoch; it is therefore a serial-path failure, "
         "not evidence of an ESP reboot." if len(disconnects) == 1 else

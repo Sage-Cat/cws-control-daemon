@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from analyze_natural_run import WRAP_US, analyze, read_ndjson_lenient
+from analyze_natural_run import WRAP_US, analyze, read_ndjson_lenient, rollover_interpretation
 
 
 class NaturalRunTests(unittest.TestCase):
@@ -58,6 +58,16 @@ class NaturalRunTests(unittest.TestCase):
         self.assertEqual(report["timing"]["timestamp_wraps"], 1)
         self.assertEqual(report["radio"]["sampled_csi_mean_amplitude"]["mean"], 7.5)
         self.assertEqual(report["continuity"]["valid_csi_gaps"]["maximum_seconds"], 0.1)
+        self.assertIn("diagnostic observations", report["claim_boundary"])
+        self.assertIn("do not by themselves validate", report["claim_boundary"])
+
+    def test_rollover_interpretation_respects_observation_boundary(self) -> None:
+        absent = rollover_interpretation(0, 0)
+        observed = rollover_interpretation(1, 0)
+
+        self.assertIn("did not exercise or validate rollover handling", absent)
+        self.assertIn("observed rollover transitions exercised", observed)
+        self.assertNotIn("did not exercise or validate", observed)
 
 
 if __name__ == "__main__":
