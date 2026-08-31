@@ -1,0 +1,20 @@
+[Unit]
+Description=Authenticated prplOS TR-181 telemetry receiver
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=cws-control
+Group=cws-control
+ExecStart=/opt/cws-control/venv/bin/cws-control prpl-receiver --host 127.0.0.1 --port 8770 --current /var/lib/cws-control/prpl-context.json --history /var/lib/cws-control/prpl-context.ndjson --token-file /var/lib/cws-control/prpl-token
+Restart=on-failure
+RestartSec=2
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/cws-control
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

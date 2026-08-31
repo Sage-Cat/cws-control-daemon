@@ -1,0 +1,29 @@
+name: Validate mean repository
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Confirm system Python
+        run: python3 --version
+      - name: Check public tracked paths
+        run: PYTHONDONTWRITEBYTECODE=1 python3 scripts/check_public_tree.py
+      - name: Validate mean identity
+        run: PYTHONDONTWRITEBYTECODE=1 python3 scripts/validate_repository.py
+      - name: Test CWS control daemon
+        working-directory: software/cws-control-daemon
+        run: PYTHONDONTWRITEBYTECODE=1 python3 -B -m unittest discover -s tests -v
+      - name: Test failure-aware timing validation
+        working-directory: software/failure-aware-timing-validation
+        run: PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=../cws-control-daemon python3 -B -m unittest discover -s tests -v

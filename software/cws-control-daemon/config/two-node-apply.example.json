@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "listen_host": "127.0.0.1",
+  "listen_port": 8765,
+  "evidence_transport": "loopback-authenticated-tunnel/1",
+  "decision_interval_seconds": 2.0,
+  "window_seconds": 2.0,
+  "freshness_seconds": 5.0,
+  "minimum_frames": 4,
+  "default_rate_hz": 40,
+  "rssi_std_scale_dbm": 5.0,
+  "motion_rssi_std_dbm": 3.0,
+  "motion_csi_cv": 0.25,
+  "load": "moderate",
+  "context_file": "/var/lib/cws-control/context.json",
+  "context_max_age_seconds": 30,
+  "prpl_context_file": "/var/lib/cws-control/prpl-context.json",
+  "prpl_context_max_age_seconds": 30,
+  "actuation_inhibit_file": "/var/lib/cws-control/actuation.inhibit",
+  "timing_mode": "failure-aware-affine-v1",
+  "mode": "apply",
+  "apply_startup_quorum": 2,
+  "policy_variant": "aqmc-sacm",
+  "nodes": {"source-a": {}, "source-b": {}},
+  "aqmc": {"rate_profile": "hardware-40hz", "bytes_per_sample": 512, "phy_rate_mbps": 54.0, "airtime_budget_percent": 10.0, "qos_budget_percent": 5.0, "probe_rate_hz": 2},
+  "sacm": {"quality_weight": 0.70, "airtime_weight": 0.15, "qos_weight": 0.15, "alpha_node": 0.01, "alpha_rate": 0.01, "alpha_bytes": 0.0, "epsilon": 0.0},
+  "actuators": {
+    "source-a": {
+      "argv": ["/usr/local/bin/cws-collector", "--state-dir", "/var/lib/cws-collector", "set-rate", "--source", "{source_id}", "--hz", "{hz}", "--wait-seconds", "5"],
+      "event_argv": ["/usr/local/bin/cws-collector", "--state-dir", "/var/lib/cws-collector", "event", "{value}"]
+    },
+    "source-b": {
+      "argv": ["ssh", "-i", "/var/lib/cws-control/id_ed25519", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", "-o", "StrictHostKeyChecking=yes", "-o", "UserKnownHostsFile=/var/lib/cws-control/known_hosts", "REPLACE_REMOTE_TARGET", "/usr/local/bin/cws-collector", "--state-dir", "/var/lib/cws-collector", "set-rate", "--source", "{source_id}", "--hz", "{hz}", "--wait-seconds", "5"],
+      "event_argv": ["ssh", "-i", "/var/lib/cws-control/id_ed25519", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", "-o", "StrictHostKeyChecking=yes", "-o", "UserKnownHostsFile=/var/lib/cws-control/known_hosts", "REPLACE_REMOTE_TARGET", "/usr/local/bin/cws-collector", "--state-dir", "/var/lib/cws-collector", "event", "{value}"]
+    }
+  }
+}

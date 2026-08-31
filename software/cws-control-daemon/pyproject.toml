@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cws-control-daemon"
+version = "0.4.1"
+description = "Failure-aware, budget-bounded cooperative Wi-Fi sensing controller"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+dependencies = []
+
+[project.scripts]
+cws-control = "cws_control.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["cws_control*"]

@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "seed": 1,
+  "safe_rate_hz": 40,
+  "command_timeout_seconds": 15,
+  "stability_timeout_seconds": 90,
+  "stability_confirmations": 3,
+  "repetitions_per_node": 5,
+  "fault_seconds": 15,
+  "detection_timeout_seconds": 15,
+  "stable_seconds": 20,
+  "nodes": {
+    "source-a": {
+      "event_argv": ["/ABSOLUTE/PATH/TO/EXPERIMENT-REVIEWED-ADAPTER", "event", "--source", "{source_id}", "--type", "{event_type}", "--note", "{note}"],
+      "rate_argv": ["/ABSOLUTE/PATH/TO/EXPERIMENT-REVIEWED-ADAPTER", "rate", "--source", "{source_id}", "--hz", "{hz}"],
+      "reboot_argv": ["/ABSOLUTE/PATH/TO/EXPERIMENT-REVIEWED-ADAPTER", "reboot", "--source", "{source_id}"],
+      "reset_argv": ["/ABSOLUTE/PATH/TO/EXPERIMENT-REVIEWED-ADAPTER", "reset", "--source", "{source_id}"],
+      "power_off_argv": ["/ABSOLUTE/PATH/TO/EXPERIMENT-REVIEWED-ADAPTER", "power", "--source", "{source_id}", "--state", "off"],
+      "power_on_argv": ["/ABSOLUTE/PATH/TO/EXPERIMENT-REVIEWED-ADAPTER", "power", "--source", "{source_id}", "--state", "on"]
+    },
+    "source-b": {
+      "event_argv": ["/ABSOLUTE/PATH/TO/EXPERIMENT-REVIEWED-ADAPTER", "event", "--source", "{source_id}", "--type", "{event_type}", "--note", "{note}"],
+      "rate_argv": ["/ABSOLUTE/PATH/TO/EXPERIMENT-REVIEWED-ADAPTER", "rate", "--source", "{source_id}", "--hz", "{hz}"],
+      "reboot_argv": ["/ABSOLUTE/PATH/TO/EXPERIMENT-REVIEWED-ADAPTER", "reboot", "--source", "{source_id}"],
+      "reset_argv": ["/ABSOLUTE/PATH/TO/EXPERIMENT-REVIEWED-ADAPTER", "reset", "--source", "{source_id}"],
+      "power_off_argv": ["/ABSOLUTE/PATH/TO/EXPERIMENT-REVIEWED-ADAPTER", "power", "--source", "{source_id}", "--state", "off"],
+      "power_on_argv": ["/ABSOLUTE/PATH/TO/EXPERIMENT-REVIEWED-ADAPTER", "power", "--source", "{source_id}", "--state", "on"]
+    }
+  },
+  "trial_classes": [
+    {
+      "fault_type": "sensing-silence",
+      "condition": "observe-inhibited",
+      "repetitions_per_node": 5,
+      "fault_seconds": 15,
+      "detection_timeout_seconds": 15,
+      "stable_seconds": 20
+    },
+    {
+      "fault_type": "esp-reboot",
+      "condition": "recommend",
+      "repetitions_per_node": 5,
+      "fault_seconds": 0,
+      "detection_timeout_seconds": 15,
+      "stable_seconds": 20
+    }
+  ]
+}

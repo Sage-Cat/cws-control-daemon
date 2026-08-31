@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "controller_config": "/etc/cws-control/config.json",
+  "seed": 1,
+  "repetitions": 3,
+  "phase_seconds": 600,
+  "cooldown_seconds": 20,
+  "require_prpl_context": true,
+  "prpl_wait_seconds": 180
+}

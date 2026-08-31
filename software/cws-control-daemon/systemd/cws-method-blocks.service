@@ -1,0 +1,18 @@
+[Unit]
+Description=Randomized prpl-context sensing method comparison
+After=cws-rate-sweep.service cws-prpl-context.service cws-context.service
+Requires=cws-prpl-context.service cws-context.service
+Conflicts=cws-control.service
+OnSuccess=cws-control.service
+
+[Service]
+Type=oneshot
+User=cws-control
+Group=cws-control
+ExecStart=/opt/cws-control/venv/bin/cws-control method-blocks --config /etc/cws-control/method-blocks.json --output-dir /var/lib/cws-control/method-blocks
+TimeoutStartSec=2h
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/cws-control /var/lib/cws-collector
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX

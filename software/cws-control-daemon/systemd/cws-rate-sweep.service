@@ -1,0 +1,17 @@
+[Unit]
+Description=Configured runtime-rate validation
+After=network-online.target cws-collector.service
+Wants=network-online.target
+Conflicts=cws-control.service
+OnSuccess=cws-control.service
+
+[Service]
+Type=oneshot
+User=cws-control
+Group=cws-control
+ExecStart=/opt/cws-control/venv/bin/cws-control rate-sweep --config /etc/cws-control/config.json --rates 10,20,40 --phase-seconds 300 --output /var/lib/cws-control/rate-sweep.json
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/cws-control /var/lib/cws-collector
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX

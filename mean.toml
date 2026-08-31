@@ -1,0 +1,18 @@
+schema_version = 1
+mean_id = "cws_control_daemon"
+canonical_name = "CWS Control Daemon"
+implementation_surface = "software/cws-control-daemon"
+
+[practical_contract]
+implementation_kind = "software"
+practical_task = "Produce hash-linked M1--M4 reference decisions, auditable operational measurement-rate decisions, and failure-aware timing behavior from supplied evidence."
+usable_result = "Reference/replay ledgers, operational decision records, verified collector actuation results, and failure-timing metrics at an operator-selected experiment run destination."
+intended_user = "Authorized cooperative Wi-Fi sensing operator."
+application_route = "Install the daemon with an externally reviewed configuration; run failure campaigns and analyses only against an explicit private experiment run destination."
+inputs = ["Collector-owned source records", "Reviewed model/candidate artifacts for the reference path", "Read-only network context", "Collector terminal transaction facts"]
+outputs = ["Hash-linked M1--M4 reference ledgers", "Operational decision records and policy metrics", "Verified actuator status", "Failure-timing metrics"]
+exclusions = ["Raw capture retention, firmware ownership, production WLAN reconfiguration, and scientific claims"]
+verification_routes = [
+  "cd software/cws-control-daemon && PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -v",
+  "cd software/failure-aware-timing-validation && PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=../cws-control-daemon python3 -B -m unittest discover -s tests -v",
+]

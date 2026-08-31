@@ -1,0 +1,12 @@
+#!/bin/sh /etc/rc.common
+
+START=93
+STOP=10
+
+start() {
+    pgrep -x wld >/dev/null || /etc/init.d/prplmesh_whm start
+}
+
+stop() {
+    /etc/init.d/prplmesh_whm stop
+}

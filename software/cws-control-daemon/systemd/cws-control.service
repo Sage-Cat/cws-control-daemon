@@ -1,0 +1,20 @@
+[Unit]
+Description=Failure-aware cooperative Wi-Fi sensing control daemon
+After=network-online.target cws-context.service cws-collector.service
+Wants=network-online.target cws-context.service
+
+[Service]
+Type=simple
+User=cws-control
+Group=cws-control
+ExecStart=/opt/cws-control/venv/bin/cws-control serve --config /etc/cws-control/config.json --output /var/lib/cws-control/decisions.ndjson
+Restart=on-failure
+RestartSec=2
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/cws-control /var/lib/cws-collector
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

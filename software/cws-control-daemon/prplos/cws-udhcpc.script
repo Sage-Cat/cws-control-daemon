@@ -1,0 +1,20 @@
+#!/bin/sh
+set -u
+
+case "${1:-}" in
+    deconfig)
+        ip route del default dev "$interface" 2>/dev/null || true
+        ip addr flush dev "$interface" scope global
+        ip link set "$interface" up
+        ;;
+    bound|renew)
+        eval "$(/bin/ipcalc.sh "$ip" "${subnet:-255.255.255.0}")"
+        ip addr replace "$ip/$PREFIX" broadcast "$BROADCAST" dev "$interface"
+        if [ -n "${router:-}" ]; then
+            set -- $router
+            ip route replace default via "$1" dev "$interface" metric 50
+        fi
+        ;;
+esac
+
+exit 0
