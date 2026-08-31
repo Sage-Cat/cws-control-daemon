@@ -1,0 +1,73 @@
+@startuml
+!theme plain
+top to bottom direction
+
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam componentStyle rectangle
+skinparam defaultFontName "DejaVu Sans"
+skinparam defaultFontSize 13
+skinparam ArrowColor #3D4A5C
+skinparam ArrowThickness 1
+skinparam ArrowFontSize 11
+skinparam component {
+  BackgroundColor #E8F1F8
+  BorderColor #286486
+  FontColor #1F2937
+}
+skinparam rectangle {
+  BackgroundColor #F7F9FC
+  BorderColor #3D4A5C
+  FontColor #1F2937
+}
+skinparam database {
+  BackgroundColor #E8F3E6
+  BorderColor #3F6B3A
+  FontColor #1F2937
+}
+skinparam note {
+  BackgroundColor #FFF4CE
+  BorderColor #8A6D1D
+  FontColor #1F2937
+}
+
+rectangle "Deployment-owned inputs" as inputs {
+  rectangle "Collector-owned\nsource records" as records
+  rectangle "Read-only\nnetwork context" as context
+  rectangle "Reviewed JSON request\nmodel + candidates + state" as request
+}
+
+rectangle "Portable CWS Control Daemon" as daemon {
+  package "Operational live path" {
+    component "UDP ingestion\nordering + parsing + timing" as ingestion
+    component "AQ-MC + SACM\noperational controller" as operational
+    ingestion -right-> operational
+  }
+
+  package "Pure reference / replay path" {
+    component "File CLI or local\nAF_UNIX boundary" as reference_io
+    component "Hash-linked reference core\nM1 -> M2 -> M3 -> M4" as reference_core
+    reference_io -right-> reference_core
+  }
+}
+
+rectangle "Operator-selected outputs / controls" as outputs {
+  database "Operational\ndecision NDJSON" as decisions
+  rectangle "Collector-owned\nrate control" as rate_control
+  database "Derived ledger +\nnext SACM state" as reference_output
+}
+
+records -down-> ingestion : cws-source-record/1 or /2
+context -down-> operational : fresh JSON context
+operational -down-> decisions
+operational <-down.> rate_control : request / verified transaction
+
+request -down-> reference_io : explicit reviewed input
+reference_core -down-> reference_output : hash-linked JSON
+
+note bottom of daemon
+  Operational and reference paths are intentionally separate.
+  No hardware backend or deployment authorization is implied.
+  Software/replay validation is not physical validation.
+end note
+@enduml

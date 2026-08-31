@@ -12,6 +12,13 @@ collector-owned measurement-rate transactions. Unit and synthetic replay tests
 exercise those software boundaries only. The repository makes no claim about
 physical effectiveness, deployment authorization, or production-network safety.
 
+## Architecture
+
+![CWS Control Daemon architecture](software/cws-control-daemon/docs/architecture-overview.svg)
+
+The rendered overview is generated from the
+[PlantUML source](software/cws-control-daemon/docs/architecture-overview.puml).
+
 This public repository contains implementation, examples, tests, and portable
 documentation only. Concrete experiments, runs, datasets, location records,
 credentials, and publication evidence are deliberately outside its boundary.
