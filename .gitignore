@@ -30,3 +30,6 @@ software/**/id_ed25519*
 **/*.sqlite
 **/*.sqlite3
 **/*.dump
+
+# Local task worktrees.
+/wt/
