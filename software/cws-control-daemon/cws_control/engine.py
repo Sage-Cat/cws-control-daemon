@@ -26,6 +26,8 @@ from cws_control.policy import (
     aqmc_admit,
     aqmc_utility,
     aqmc_direct_decide,
+    budget,
+    configuration_feasible,
     sacm_decide,
     tier_for_utility,
 )
@@ -257,6 +259,12 @@ class ControlEngine:
         }
         self.previous: Configuration | None = None
         self.last_applied: Configuration | None = None
+        # Operational apply state is independent of desired/policy state.
+        self.confirmed_tiers: dict[str, str | None] = {source: None for source in self.node_ids}
+        self.confirmation_evidence: dict[str, dict[str, Any]] = {
+            source: {"status": "uninitialized"} for source in self.node_ids
+        }
+        self.pending_configuration: Configuration | None = None
         self.apply_startup_quorum = int(
             self.config.get("apply_startup_quorum", len(self.node_ids))
         )
@@ -422,6 +430,22 @@ class ControlEngine:
             chip_temperature_c=temperature_c,
         )
 
+    def _confirmed_configuration(self) -> Configuration | None:
+        if any(tier is None for tier in self.confirmed_tiers.values()):
+            return None
+        return Configuration({source: str(tier) for source, tier in self.confirmed_tiers.items()})
+
+    @staticmethod
+    def _verified_commit(action: Mapping[str, Any], source_id: str, hz: int) -> bool:
+        return (
+            action.get("source_id") == source_id
+            and action.get("hz") == hz
+            and action.get("status") == "applied"
+            and action.get("verified_committed") is True
+            and action.get("schema_version") == ACTUATION_TRANSACTION_V1
+            and action.get("transaction_status") == "committed"
+        )
+
     def decide(self, now_wall_time_ns: int | None = None) -> dict[str, Any]:
         now_wall_time_ns = now_wall_time_ns or time.time_ns()
         context_status = "configured-load"
@@ -459,10 +483,36 @@ class ControlEngine:
         evidence = {source_id: self._evidence(source_id, now_wall_time_ns) for source_id in self.node_ids}
         aqmc = aqmc_admit(evidence, self.load, self.aqmc_parameters)
         decide_policy = aqmc_direct_decide if self.policy_variant == "aqmc-only" else sacm_decide
-        sacm = decide_policy(
-            self.previous, aqmc.configuration, evidence, self.load,
-            self.aqmc_parameters, self.sacm_parameters,
+        incumbent = self._confirmed_configuration() if self.mode == "apply" else self.previous
+        confirmed_before = dict(self.confirmed_tiers)
+        confirmation_before = {source: dict(value) for source, value in self.confirmation_evidence.items()}
+        reconciling = (
+            self.mode == "apply" and incumbent is None and self.pending_configuration is not None
+            and any(value["status"] != "uninitialized" for value in self.confirmation_evidence.values())
         )
+        if reconciling:
+            desired = self.pending_configuration
+            # Unknown is not the all-off initialization reference. No normal
+            # policy comparison or numeric transition claim is valid here.
+            sacm_record = {
+                "configuration": json_ready(desired),
+                "action": "reconciliation-pending",
+                "reason": "unresolved-actuator-state",
+                "candidate_feasible": configuration_feasible(aqmc.configuration, evidence, self.load, self.aqmc_parameters),
+                "incumbent_feasible": None,
+                "candidate_utility": None,
+                "incumbent_utility": None,
+                "utility_gain": None,
+                "transition_cost": None,
+                "estimated_update_bytes": None,
+            }
+        else:
+            sacm = decide_policy(
+                incumbent, aqmc.configuration, evidence, self.load,
+                self.aqmc_parameters, self.sacm_parameters,
+            )
+            desired = sacm.configuration
+            sacm_record = json_ready(sacm)
         weights = {source: item.reliability for source, item in evidence.items() if item.available}
         weight_sum = sum(weights.values())
         fused_motion = (
@@ -479,48 +529,76 @@ class ControlEngine:
         )
         if not self.apply_armed and len(weights) >= self.apply_startup_quorum:
             self.apply_armed = True
-        if (
-            self.mode == "apply"
-            and self.actuator is not None
-            and self.apply_armed
-            and sacm.configuration != self.last_applied
-        ):
-            rates = self.aqmc_parameters.rates
-            for source_id in self.node_ids:
-                previous_tier = self.last_applied.tier(source_id) if self.last_applied else None
-                previous_hz = (
-                    self.aqmc_parameters.probe_rate_hz
-                    if previous_tier == "off"
-                    else rates[previous_tier]
-                    if previous_tier is not None
-                    else None
-                )
-                desired_tier = sacm.configuration.tier(source_id)
-                desired_hz = self.aqmc_parameters.probe_rate_hz if desired_tier == "off" else rates[desired_tier]
-                if previous_hz != desired_hz:
-                    actions.append(
-                        {"source_id": source_id, "hz": desired_hz, "status": "inhibited"}
-                        if actuation_inhibited
-                        else {
-                            "source_id": source_id,
-                            "hz": desired_hz,
-                            "status": "skipped-unavailable",
+        pending_admissible: bool | None = None
+        if self.mode == "apply":
+            if desired != incumbent:
+                self.pending_configuration = desired
+            else:
+                self.pending_configuration = None
+            unresolved = [source for source in self.node_ids if self.confirmed_tiers[source] != desired.tier(source)]
+            # All-off is the existing policy fallback, not a feasible sensing
+            # configuration. Its probe traffic must still fit the current budget.
+            target_feasible = (
+                configuration_feasible(desired, evidence, self.load, self.aqmc_parameters)
+                if desired.active_nodes else budget(desired, self.load, self.aqmc_parameters).feasible
+            )
+            pending_admissible = target_feasible and all(evidence[source].available for source in unresolved)
+            if reconciling and not pending_admissible:
+                sacm_record["reason"] = "pending-target-not-admissible"
+            if self.actuator is not None and self.apply_armed and unresolved:
+                rates = self.aqmc_parameters.rates
+                for source_id in unresolved:
+                    desired_tier = desired.tier(source_id)
+                    desired_hz = self.aqmc_parameters.probe_rate_hz if desired_tier == "off" else rates[desired_tier]
+                    if actuation_inhibited:
+                        action = {"source_id": source_id, "hz": desired_hz, "status": "inhibited"}
+                    elif not evidence[source_id].available:
+                        action = {"source_id": source_id, "hz": desired_hz, "status": "skipped-unavailable"}
+                    elif not target_feasible or (reconciling and not pending_admissible):
+                        action = {"source_id": source_id, "hz": desired_hz, "status": "reconciliation-blocked"}
+                    else:
+                        action = self.actuator.apply(source_id, desired_hz)
+                        committed = self._verified_commit(action, source_id, desired_hz)
+                        self.confirmed_tiers[source_id] = desired_tier if committed else None
+                        self.confirmation_evidence[source_id] = {
+                            "status": "verified-committed" if committed else "unknown-after-attempt",
+                            "decision_sequence": self.decision_sequence + 1,
+                            "requested_tier": desired_tier,
+                            "requested_hz": desired_hz,
+                            "actuator_status": action.get("status"),
+                            "transaction_id": action.get("transaction_id"),
+                            "terminal_facts_sha256": action.get("terminal_facts_sha256"),
                         }
-                        if not evidence[source_id].available
-                        else self.actuator.apply(source_id, desired_hz)
-                    )
-            # A desired configuration is confirmed only when every required
-            # command ran successfully.  Missing or temporarily unavailable
-            # actuators must leave it pending so a later decision can retry.
-            if not actuation_inhibited and actions and all(
-                action.get("status") == "applied"
-                and action.get("verified_committed") is True
-                and action.get("schema_version") == ACTUATION_TRANSACTION_V1
-                and action.get("transaction_status") == "committed"
-                for action in actions
-            ):
-                self.last_applied = sacm.configuration
-        self.previous = sacm.configuration
+                    actions.append(action)
+            confirmed = self._confirmed_configuration()
+            # Do not retain an obsolete fully-applied vector after a partial
+            # mutation. A complete current ledger alone supplies the incumbent.
+            self.last_applied = confirmed
+            self.previous = confirmed
+            if confirmed == desired:
+                self.pending_configuration = None
+        else:
+            self.previous = desired
+        apply_state = {
+            "status": (
+                "not-applying" if self.mode != "apply" else
+                "reconciliation-pending" if self.pending_configuration is not None else
+                "confirmed" if self.last_applied is not None else "uninitialized"
+            ),
+            "policy_basis": (
+                "previous-policy-output" if self.mode != "apply" else
+                "confirmed-state" if incumbent is not None else
+                "unknown-pending" if reconciling else "uninitialized-reference"
+            ),
+            "incumbent_before_decision": json_ready(incumbent),
+            "confirmed_tiers_before": confirmed_before,
+            "confirmation_evidence_before": confirmation_before,
+            "desired_configuration": json_ready(desired),
+            "confirmed_tiers_after": dict(self.confirmed_tiers),
+            "confirmation_evidence_after": {source: dict(value) for source, value in self.confirmation_evidence.items()},
+            "pending_configuration": json_ready(self.pending_configuration),
+            "pending_target_admissible": pending_admissible,
+        }
         self.decision_sequence += 1
         return {
             "schema_version": 1,
@@ -551,7 +629,8 @@ class ControlEngine:
             "actuation_inhibited": actuation_inhibited,
             "evidence": json_ready(evidence),
             "aqmc": json_ready(aqmc),
-            "sacm": json_ready(sacm),
+            "sacm": sacm_record,
+            "apply_state": apply_state,
             "fusion": {"motion_score": fused_motion, "weights": weights, "quorum": len(weights)},
             "timing_events": timing_events,
             "actuation": actions,

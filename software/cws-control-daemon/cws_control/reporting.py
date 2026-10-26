@@ -69,6 +69,7 @@ def summarize_decisions(path: Path, event_paths: Iterable[Path] = ()) -> dict[st
     first_ns = last_ns = None
     decisions = budget_violations = accepted_budget_violations = 0
     estimated_update_bytes = 0
+    unknown_update_estimates = 0
     positive_hold_regret = 0.0
     longest_deadlock = current_deadlock = 0
     configuration_changes = rate_tier_changes = membership_changes = 0
@@ -110,7 +111,11 @@ def summarize_decisions(path: Path, event_paths: Iterable[Path] = ()) -> dict[st
             budget_violations += 1
             if sacm["action"] == "accept":
                 accepted_budget_violations += 1
-        estimated_update_bytes += int(sacm["estimated_update_bytes"])
+        # Pending reconciliation has no valid incumbent-based byte estimate.
+        if sacm["estimated_update_bytes"] is not None:
+            estimated_update_bytes += int(sacm["estimated_update_bytes"])
+        else:
+            unknown_update_estimates += 1
         is_deadlock = sacm["action"] == "hold" and bool(sacm["candidate_feasible"]) and float(sacm["utility_gain"]) > 0
         if is_deadlock:
             current_deadlock += 1
@@ -192,6 +197,11 @@ def summarize_decisions(path: Path, event_paths: Iterable[Path] = ()) -> dict[st
                     if (
                         result["configuration_readmitted_wall_time_ns"] is None
                         and tiers.get(source_id, "off") != "off"
+                        and (
+                            record.get("mode") != "apply"
+                            or "apply_state" not in record
+                            or record["apply_state"]["status"] == "confirmed"
+                        )
                     ):
                         result["configuration_readmitted_wall_time_ns"] = wall_ns
         for source_id, result in failure_results.items():
@@ -258,6 +268,7 @@ def summarize_decisions(path: Path, event_paths: Iterable[Path] = ()) -> dict[st
         "rate_tier_changes": rate_tier_changes,
         "hold_ratio": action_counts["hold"] / decisions,
         "estimated_accepted_update_bytes": estimated_update_bytes,
+        "unknown_update_estimate_decisions": unknown_update_estimates,
         "positive_hold_regret": positive_hold_regret,
         "longest_positive_gain_hold_run": longest_deadlock,
         "timing_event_counts": dict(sorted(timing_event_counts.items())),

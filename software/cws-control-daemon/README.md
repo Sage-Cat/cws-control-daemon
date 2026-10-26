@@ -80,9 +80,59 @@ Version 1 remains the legacy operational record. Version 2 additionally binds
 the top-level transaction, terminal facts, and requested firmware state to one
 expected M4 decision SHA-256 and transaction ID. This verifies provenance
 correlation only; it is not deployment authorization or physical validation.
-Partial multi-node actions remain pending and are retried by a later decision.
 This boundary is unit-tested with mocked subprocesses; no physical actuator has
 been validated by these tests.
+
+### Operational state reconciliation (0.4.2)
+
+In `apply` mode, the desired target is separate from the per-node confirmed
+rate-tier ledger. A verified committed transaction confirms only its node.
+An attempted command returning failure, timeout, mismatch or an unverified
+response makes that node unknown, even when the command may have reached the
+device. An inhibited or skipped command does not invalidate an existing
+confirmation or establish a new one. `previous` and `last_applied` expose the
+complete confirmed configuration, or `None` when any node is unknown; neither
+retains a stale fully-applied vector after a partial mutation.
+
+Normal policy utility and transition cost use the complete confirmed vector.
+With an incomplete vector after an attempted application, the decision action
+is `reconciliation-pending`, not a successful hold. Its incumbent feasibility,
+utility, gain, transition cost and update-byte estimate are JSON `null`.
+The newly proposed AQ-MC candidate remains visible, but the pending target is
+resolved first. Only nodes not confirmed at that target are retried, and only
+if the target remains admissible under current evidence and budgets and all
+unresolved nodes are available. The existing all-off fallback is allowed only
+within its probe-traffic budget; it is not called feasible active sensing.
+An inadmissible pending target is reported as `pending-target-not-admissible`;
+no blind retry or automatic rollback is performed. Recovery remains blocked
+until the prerequisites return or an operator performs separately authorized
+reconciliation. This does not authorize a recovery command on real devices.
+
+The additive `apply_state` decision object records the pre-decision incumbent,
+per-node confirmations before and after application, desired and pending targets,
+and current retry admissibility. Confirmation provenance includes the decision
+sequence and available transaction ID/facts hash. First application uses the
+existing initialization rule and is labelled `uninitialized-reference`, not a
+measurement of an initially all-off device state. Before any attempted command,
+startup/inhibit delays do not freeze a stale initial target. After a retry
+completes, that record still describes a reconciliation decision; the next
+ordinary policy decision uses the now-confirmed vector.
+
+These confirmations describe verified commanded outcomes under the existing
+single-controller transaction contract, not continuous independent observation.
+Heartbeat rates are not promoted to verified readback, and external changes,
+restarts and deployment-specific state reconciliation require separately
+qualified evidence. The backend-neutral adapter below is not wired into this
+operational loop. `observe` and `recommend`, the pure reference/replay path,
+and the mathematical policy rule are unchanged. Historical 0.4.1 results are
+not reinterpreted as repaired executions. Tests use only simulated devices.
+
+Decision summaries accept pending null metrics and report
+`unknown_update_estimate_decisions`; `estimated_accepted_update_bytes` sums
+only available policy estimates and must not be read as measured wire bytes
+or as a complete estimate when that unknown count is nonzero. For new apply
+records, the failure summary does not report configuration readmission until
+the target is fully confirmed. Historical records keep their original meaning.
 
 ## Backend-neutral future adapter protocol
 
